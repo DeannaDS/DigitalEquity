@@ -1,0 +1,171 @@
+---
+title: "Digital Equity Information - Dane County Wisconsin"
+author: "Deanna Schneider"
+date: "2023-05-04"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = F, error = F, message = F)
+```
+
+The following information is based on the most recent 5-year American community survey data (ending with 2021).
+
+
+```{r results='hide'}
+library(tidycensus)
+library(tidyverse)
+library(tigris)
+library(leaflet)
+library(tmap)
+tmap_mode('view')#switch to view for interactive maps, plot for static
+options(tigris_use_cache = TRUE)
+
+rappdirs::user_cache_dir("tigris")
+vars = load_variables(year = 2021, dataset='acs1')
+
+vars %>% filter(str_detect(name, 'B28003'))
+```
+```{r}
+#number of use residents born in Mexico, by state from the 2020 ACS
+computer_info_tract <- get_acs(
+  geography = "block group", 
+  variables = c("B28003_002", "B28003_003", 'B28003_004', 'B28003_005', 'B28003_006'),
+  summary_var = 'B28003_001',
+  #year = 2021,
+  state=55,
+  county=025, 
+  geometry = TRUE
+) %>%
+  mutate(percent = 100 * (estimate/summary_est))
+
+computer_info_dane <- get_acs(
+  geography = "county", 
+  variables = c("B28003_002", "B28003_003", 'B28003_004', 'B28003_005', 'B28003_006'),
+  summary_var = 'B28003_001',
+  #year = 2021,
+  state=55,
+  county=025, 
+  geometry = TRUE
+) %>%
+  mutate(percent = 100 * (estimate/summary_est))
+
+computer_info_wi <- get_acs(
+  geography = "state", 
+  variables = c("B28003_002", "B28003_003", 'B28003_004', 'B28003_005', 'B28003_006'),
+  summary_var = 'B28003_001',
+  #year = 2021,
+  state='WI',
+  geometry = TRUE
+) %>%
+  mutate(percent = round(100 * (estimate/summary_est), 2))
+
+
+get_info_graphic <- function(var, emoji, title){
+  dane_percent_of_computers <- paste0(round(computer_info_dane %>% filter(variable == var) %>% pull(percent), 1), '%')
+wi_percent_of_computers <- paste0(round(computer_info_wi %>% filter(variable == var) %>% pull(percent), 1), '%')
+
+# create two simple tiles
+key_tiles <- tibble(
+  x = c(2, 8.5),
+  y = c(6.5, 6.5),
+  h = c(4.25, 4.25),
+  w = c(6.25, 6.25),
+  val = c(dane_percent_of_computers, wi_percent_of_computers),
+  text = c("Dane County", "Wisconsin"),
+  icon = c(emojifont::emoji(emoji),
+            emojifont::emoji(emoji)),
+  color = factor(c(1, 2))
+) 
+
+# plot two key highlight tiles
+ggplot(data = key_tiles, 
+       aes(x, y, height = h, width = w, label = text)) +
+  geom_tile(aes(fill = color)) +
+  geom_text(color = "white", fontface = "bold", size = 16, family = "Avenir Next",
+            aes(label = val, x = x - 2.9, y = y + 1.5), hjust = 0) +
+  geom_text(color = "white", fontface = "bold", size = 6, family = "Avenir Next",
+            aes(label = text, x = x - 2.9, y = y - 1.5), hjust = 0) +
+  coord_fixed() +
+  scale_fill_manual(values = c("#8cc152", "#226d93")) +
+  geom_text(size = 30, 
+            aes(label = icon, 
+                family = "Arial", 
+                x = x + 1.5, y = y + 0.3), 
+            alpha = 0.25) +
+  theme(plot.margin = unit(c(-0.30,0,0,0), "null")) + # remove margin around plot
+  theme_void() +
+  labs(caption = "Source: American Community Survey 5-year Estimates", title=title) +
+  guides(fill = FALSE)
+  
+}
+
+get_block_group_plot <- function(var, title, incHist=T) {
+  data <- computer_info_tract %>% filter(variable == var)
+
+  dane_pal <- c('#d8e2ea', '#a9bfd1', '#7ca0b9', '#5385a6', '#226d93')
+  dane_pal_green <- c('#f7fbf3', '#e6f1d7', '#cfe4b3', '#b0d486', '#8cc152')
+  
+  tm_shape(data) + tm_polygons(col='percent',
+                                         style='jenks', 
+                                         n=5,
+                                         palette=dane_pal_green,
+                                         title='ACS Estimates', 
+                                         legend.hist = incHist,
+                               alpha = 0.75
+                                         ) + 
+      tm_layout(main.title = title,
+              frame = FALSE,
+              legend.outside = TRUE,
+              legend.hist.width = 5
+              ) +
+    tm_basemap(leaflet::providers$OpenStreetMap)
+
+  
+}
+```
+
+## Households with a Computer
+Most households in Dane County have a computer, and the percent of households in Dane County with a computer exceeds the percent of households with a computer for the state of Wisconsin. But, block group data reveals a disparity in percent of households with a computer by neighborhood, with certain neighborhoods within the county have a much lower percentage of the household owning a computer.
+
+```{r results='hide'}
+emojifont::search_emoji("phone")
+```
+
+
+```{r}
+get_info_graphic('B28003_002', 'desktop_computer', "Households with a Computer")
+get_block_group_plot('B28003_002', "Percent Households with a Computer")
+
+```
+
+## No Internet Access
+When viewed at the county or state level, most households that have a computer have some form of internet access. But pockets exist within Dane County in which a much higher percent of households do not have internet access, even while having a computer.
+
+```{r}
+get_info_graphic('B28003_005', 'mobile_phone_off', "Households with No Internet Access")
+get_block_group_plot('B28003_005', "Percent Households with Computer and No Internet", F)
+```
+
+
+
+## Dial-up Access Only
+In both Dane County and Wisconsin, the percentage of households that have a computer, but only have dial-up access, is extremely low. A greater disparity is once again seen at the block group level, with some rural and urban block groups showing higher percentages of dial-up only access.
+
+```{r}
+get_info_graphic('B28003_003', 'telephone', "Households with Dial-up Access Only")
+get_block_group_plot('B28003_003', "Percent Households with Computer and Dial-up Access Only", F)
+```
+
+
+## Broadband Access
+Dane County exceeds Wisconsin in the percentage of households that have a computer and broadband access. But again, the distribution of that broadband access throughout the county is inconsistent.
+
+```{r}
+get_info_graphic('B28003_004', 'computer', "Households with Broadband Access")
+get_block_group_plot('B28003_004', "Percent Households with Computer and Broadband Access", F)
+
+```
+
