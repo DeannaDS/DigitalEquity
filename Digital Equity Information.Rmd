@@ -29,8 +29,8 @@ vars = load_variables(year = 2021, dataset='acs1')
 vars %>% filter(str_detect(name, 'B28003'))
 ```
 ```{r}
-#number of use residents born in Mexico, by state from the 2020 ACS
-computer_info_tract <- get_acs(
+#variables related to computer and internet availability
+computer_info_group <- get_acs(
   geography = "block group", 
   variables = c("B28003_002", "B28003_003", 'B28003_004', 'B28003_005', 'B28003_006'),
   summary_var = 'B28003_001',
@@ -66,7 +66,6 @@ computer_info_wi <- get_acs(
 get_info_graphic <- function(var, emoji, title){
   dane_percent_of_computers <- paste0(round(computer_info_dane %>% filter(variable == var) %>% pull(percent), 1), '%')
 wi_percent_of_computers <- paste0(round(computer_info_wi %>% filter(variable == var) %>% pull(percent), 1), '%')
-
 # create two simple tiles
 key_tiles <- tibble(
   x = c(2, 8.5),
@@ -79,6 +78,8 @@ key_tiles <- tibble(
             emojifont::emoji(emoji)),
   color = factor(c(1, 2))
 ) 
+
+
 
 # plot two key highlight tiles
 ggplot(data = key_tiles, 
@@ -99,11 +100,10 @@ ggplot(data = key_tiles,
   theme_void() +
   labs(caption = "Source: American Community Survey 5-year Estimates", title=title) +
   guides(fill = FALSE)
-  
 }
 
 get_block_group_plot <- function(var, title, incHist=T) {
-  data <- computer_info_tract %>% filter(variable == var)
+  data <- computer_info_group %>% filter(variable == var)
 
   dane_pal <- c('#d8e2ea', '#a9bfd1', '#7ca0b9', '#5385a6', '#226d93')
   dane_pal_green <- c('#f7fbf3', '#e6f1d7', '#cfe4b3', '#b0d486', '#8cc152')
@@ -125,6 +125,16 @@ get_block_group_plot <- function(var, title, incHist=T) {
 
   
 }
+
+get_block_group_data <- function(var, title, sort=F) {
+  data <- computer_info_group %>% filter(variable == var)%>% arrange(percent, ascending=sort)
+  
+  data
+}
+data <- get_block_group_data('B28003_002', "Percent Households with a Computer")
+
+
+
 ```
 
 ## Households with a Computer
@@ -138,6 +148,9 @@ emojifont::search_emoji("phone")
 ```{r}
 get_info_graphic('B28003_002', 'desktop_computer', "Households with a Computer")
 get_block_group_plot('B28003_002', "Percent Households with a Computer")
+data <- get_block_group_data('B28003_002', "Percent Households with a Computer")
+paste0('Range: ', min(data$percent, na.rm=T), - max(data$percent, na.rm=T))
+table(cut(data$percent, breaks=c(60,80,90,100)))
 
 ```
 
@@ -147,6 +160,9 @@ When viewed at the county or state level, most households that have a computer h
 ```{r}
 get_info_graphic('B28003_005', 'mobile_phone_off', "Households with No Internet Access")
 get_block_group_plot('B28003_005', "Percent Households with Computer and No Internet", F)
+data <- get_block_group_data('B28003_005', "Percent Households with Computer and No Internet")
+paste0('Range: ', min(data$percent, na.rm=T), - max(data$percent, na.rm=T))
+table(cut(data$percent, breaks=c(8,15,30,100)))
 ```
 
 
@@ -166,6 +182,8 @@ Dane County exceeds Wisconsin in the percentage of households that have a comput
 ```{r}
 get_info_graphic('B28003_004', 'computer', "Households with Broadband Access")
 get_block_group_plot('B28003_004', "Percent Households with Computer and Broadband Access", F)
+data <- get_block_group_data('B28003_004', "Percent Households with Computer and Broadband Access")
+paste0('Range: ', min(data$percent, na.rm=T), - max(data$percent, na.rm=T))
 
 ```
 
